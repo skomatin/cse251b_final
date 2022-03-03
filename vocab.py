@@ -23,14 +23,3 @@ class Vocabulary(object):
 
     def __len__(self):
         return len(self.word2idx)
-
-    def save(self):
-        with open('savedVocab', 'wb') as savedVocab:
-            pickle.dump(self, savedVocab)
-            print("Saved the vocab.")
-    
-def load_vocab(self):
-    with open('savedVocab', 'rb') as savedVocab:
-        vocab = pickle.load(savedVocab)
-        print("loaded vocab")
-    return vocab
