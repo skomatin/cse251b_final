@@ -1,0 +1,26 @@
+{
+  "experiment_name": "default_experiment",
+  "dataset": {
+    "training_file_path": "./data/train.csv",
+    "validation_file_path": "./data/val.csv",
+    "test_file_path": "./data/test.csv",
+    "vocabulary_threshold": 2,
+    "batch_size": 64,
+    "num_workers": 1
+  },
+  "experiment": {
+    "num_epochs": 10,
+    "learning_rate": 5e-4
+  },
+  "model": {
+    "hidden_size": 512,
+    "num_layers": 2,
+    "embedding_size": 300,
+    "model_type": "LSTM"
+  },
+  "generation": {
+    "max_length": 20,
+    "deterministic": false,
+    "temperature": 0.1
+  }
+}
