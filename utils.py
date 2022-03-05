@@ -1,7 +1,7 @@
 import pandas as pd
 import pickle
 import string
-import os
+import os, sys
 from vocab import Vocabulary
 import torch
 import torchtext
@@ -47,8 +47,8 @@ def save_vocab(vocab):
         pickle.dump(vocab, savedVocab)
         print("Saved the vocab.")
     
-def load_vocab(self):
-    with open('savedVocab', 'rb') as savedVocab:
+def load_vocab():
+    with open(os.path.join(sys.path[0], 'savedVocab'), 'rb') as savedVocab:
         vocab = pickle.load(savedVocab)
         print("loaded vocab")
     return vocab
@@ -56,7 +56,7 @@ def load_vocab(self):
 def build_vocab():
 
     train = pd.read_csv('./data/train.csv')
-    val = pd.read_csv('./data/dev.csv')
+    val = pd.read_csv('./data/val.csv')
 
     vocab = Vocabulary()
     tokenizer = get_tokenizer("basic_english")
