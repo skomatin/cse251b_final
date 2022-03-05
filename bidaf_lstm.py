@@ -14,10 +14,8 @@ class LSTMContextLayer(nn.Module):
         passage - N x P x E
         answer - N X A X E
         """
-
         out_pass, _ = self.pass_context(passage) # N x P x 2*H
         out_ans, _ = self.ans_context(answer) # N x A x 2*H
-
         return out_pass, out_ans
 
     def __call__(self, passage, answer):
@@ -82,29 +80,25 @@ class AttentionFlowLSTMEncoder(nn.Module):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.vocab = vocab
-        self.embedder = nn.Embedding(num_embeddings = len(self.vocab), embedding_dim=embedding_dim, padding_idx=0)
         self.context_layer = LSTMContextLayer(self.embedding_dim, self.hidden_size, self.num_layers)
         self.attention_flow_layer = AttentionFlowLayer(self.embedding_dim, self.hidden_size)
 
-        self.encoder = nn.Sequential(
-            nn.LSTM(8*self.hidden_size, self.hidden_size, batch_first=True, bidirectional=True),
-            nn.Linear(2*self.hidden_size, self.embedding_dim)
-        )
-
-    def embed(self, words):
-        """words is N x L"""
-        return self.embedder(words) # N X L X embedding
+        self.encoder = nn.LSTM(8*self.hidden_size, self.hidden_size, batch_first=True, bidirectional=True)
+        self.fc = nn.Linear(2*self.hidden_size, self.embedding_dim)
 
     def forward(self, passage, answer):
         """
         passage: embedded passage N x P x E
         answer: embedded answer N x A x E
+
+        encoding: encoded representation of passage-answer N x 1 x E
         """
 
         H, U = self.context_layer(passage, answer) # N x P x 2H, N x A x 2H
         G = self.attention_flow_layer(H, U) # N x P x 8H
         encoding, _ = self.encoder(G) # N x P x 2H
-
+        encoding = torch.mean(encoding, dim=1, keepdim=True) # N x 1 x 2H
+        encoding = self.fc(encoding) # N x 1 x E
         return encoding
 
     def __call__(self, passage, answer):
@@ -113,7 +107,7 @@ class AttentionFlowLSTMEncoder(nn.Module):
 class LSTMDecoder(nn.Module):
     """Decoder to produce sequential output as question"""
 
-    def __init__(self, embedding_dim, hidden_size, vocab, question_length):
+    def __init__(self, embedding_dim, hidden_size, num_layers, vocab, question_length):
         """
         embedding_dim: dimension of word embedding
         hidden_size: hidden state dimension for decoder
@@ -121,31 +115,99 @@ class LSTMDecoder(nn.Module):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.hidden_size = hidden_size
+        self.num_layers = num_layers
         self.vocab = vocab
         self.question_length = question_length
 
-        self.decoder = nn.Sequential(
-            nn.LSTM(self.embedding_dim, self.hidden_size, batch_first=True),
-            nn.Linear(self.hidden_size, len(self.vocab))
-        )
+        self.decoder = nn.LSTM(self.embedding_dim, self.hidden_size, self.num_layers, batch_first=True)
+        self.fc = nn.Linear(self.hidden_size, len(self.vocab))
         self.softmax = nn.Softmax(dim=2)
 
-    def forward(self, encoded_inputs, embedded_targets):
+    def forward(self, encoded_inputs, embedded_targets=None, embedder=None):
         """
-        Generates sequential output using teacher forcing
+        Generates sequential output
         
-        encoded_inputs: N x L x E
+        encoded_inputs: N x 1 x E
         embedded_targets: N x L x E
+        embedded_targets: supply targets for teacher forcing, otherwise, a single output is produced
         """
-        assert encoded_inputs.shape[1] == self.question_length
         
-        decoder_inputs = torch.cat([encoded_inputs, embedded_targets[:, :-1, :]], dim=1)
-        sequence = self.decoder(decoder_inputs) # N x L x vocab_size
+        if embedded_targets is not None:        
+            assert embedded_targets.shape[1] == self.question_length
+            decoder_inputs = torch.cat([encoded_inputs, embedded_targets[:, :-1, :]], dim=1)
+            sequence, _ = self.decoder(decoder_inputs) # N x L x hidden_size
+            sequence = self.fc(sequence) # N x L x vocab_size
+            return sequence
+        else:
+            with torch.no_grad():
+                assert embedder is not None
+                sequence = None
+                hidden_state = None
+                inputs = encoded_inputs
+                for i in range(self.question_length):
+                    out, hidden_state = self.decoder(inputs, hidden_state) # N x 1 x H
+                    out = self.fc(out) # N x 1 x vocab_size
+                    probs = self.softmax(out)
+                    word = torch.multinomial(probs.squeeze(), 1) # N x 1
 
-        return sequence
+                    if i == 0:
+                        sequence = word
+                    else:
+                        sequence = torch.cat([sequence, word], dim=1)
 
-    def __call__(self, encoded_inputs, embedded_targets):
+                    inputs = embedder(word.long()) # N x 1 x E
+                    
+                return sequence # N x L
+    
+    def __call__(self, encoded_inputs, embedded_targets, embedder=None):
         
-        return self.forward(encoded_inputs, embedded_targets)
+        return self.forward(encoded_inputs, embedded_targets, embedder)
 
 class BiDAF_LSTMNet(nn.Module):
+
+    def __init__(self, embedding_dim, hidden_size, num_layers, vocab, question_length):
+        super().__init__()
+        self.embedding_dim = embedding_dim
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.vocab = vocab
+        self.question_length = question_length
+        
+        self.embedder = nn.Embedding(num_embeddings = len(self.vocab), embedding_dim=embedding_dim, padding_idx=0)
+        self.encoder = AttentionFlowLSTMEncoder(self.embedding_dim, self.hidden_size, self.num_layers, self.vocab)
+        self.decoder = LSTMDecoder(self.embedding_dim, self.hidden_size, self.num_layers, self.vocab, self.question_length)
+        self.softmax = nn.Softmax(dim=2)
+
+    def embed(self, words):
+        """words is N x L"""
+        return self.embedder(words) # N X L X embedding
+
+    def forward(self, passage, answer, question):
+        """
+        passage: N x P
+        answer: N x A
+        question: N x Q
+        """
+        P = passage.shape[1] # P, A, and Q should all be the same
+        A = answer.shape[1]
+        Q = question.shape[1]
+        pass_ans_qembed = self.embed(torch.cat([passage, answer, question], dim=1))
+        passage, answer, q_embed = pass_ans_qembed[:, :P, :], pass_ans_qembed[:, P:2*P, :], pass_ans_qembed[:, 2*P:, :]
+
+        encoded = self.encoder(passage, answer)
+        sequence = self.decoder(encoded, q_embed) # teacher forced
+
+        return sequence # N x Q x vocab_size
+
+    def predict(self, passage, answer):
+        """
+        Generates question word-by-word
+
+        Should only be used in evaluation mode
+        """
+        with torch.no_grad():
+            pass_ans = self.embed(torch.cat([passage, answer], dim=1))
+            passage, answer = pass_ans[:, :passage.shape[1], :], pass_ans[:, passage.shape[1]:, :]
+            encoded = self.encoder(passage, answer) # N x 1 x E
+            sequence = self.decoder(encoded, embedded_targets=None, embedder=self.embedder) # N x L x E
+            return sequence
