@@ -30,7 +30,7 @@ class SQUAD(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        return {'input': (self.data[idx][0], self.data[idx][1]), 'output': self.data[idx][2]}
+        return self.data[idx][0], self.data[idx][1], self.data[idx][2]
 
 
 # Builds your datasets here based on the configuration.
