@@ -1,9 +1,9 @@
 {
   "experiment_name": "default_experiment",
   "dataset": {
-    "training_file_path": "./data/train.csv",
-    "validation_file_path": "./data/val.csv",
-    "test_file_path": "./data/test.csv",
+    "training_file_path": "data/train_processed.pickle",
+    "validation_file_path": "data/val_processed.pickle",
+    "test_file_path": "data/test_processed.pickle",
     "vocabulary_threshold": 2,
     "batch_size": 64,
     "num_workers": 1

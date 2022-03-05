@@ -39,6 +39,7 @@ class Experiment(object):
 
         # Load Datasets
         self.__vocab, self._train_loader, self._val_loader, self._test_loader = get_datasets(config_data)
+        print("Loaded Datasets")
 
         # Setup Experiment
         self.__generation_config = config_data['generation']
