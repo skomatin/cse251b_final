@@ -48,6 +48,8 @@ def save_vocab(vocab):
         print("Saved the vocab.")
     
 def load_vocab():
+    if not os.path.exists('savedVocab'):
+        build_vocab()
     with open(os.path.join(sys.path[0], 'savedVocab'), 'rb') as savedVocab:
         vocab = pickle.load(savedVocab)
         print("loaded vocab")
