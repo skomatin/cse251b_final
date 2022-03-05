@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
 import torchvision
-
-from models import *
-
+from bidaf_lstm import *
+import constants
 
 # Build and return the model here based on the configuration.
 def get_model(config_data, vocab):
@@ -13,12 +12,12 @@ def get_model(config_data, vocab):
     
     # You may add more parameters if you want
     num_layers = config_data['model']['num_layers']
-    vocab_size = len(vocab)
     model_temp = config_data['generation']['temperature']
+    question_length = constants.MAX_QUESTION_LEN + 2
         
     # Define and return model
-    if model_type == 'LSTM':
-        return EncoderDecoderLSTM(hidden_size, embedding_size, num_layers, vocab_size, model_temp)
+    if model_type == 'BiDAFLSTM':
+        return BiDAF_LSTMNet(embedding_size, hidden_size, num_layers, vocab, question_length, model_temp)
     else:
         return None
 

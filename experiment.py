@@ -22,6 +22,8 @@ import json
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torchvision.transforms as transforms
 
+from datasets import load_metric
+
 warnings.filterwarnings("ignore", category=UserWarning)
 # Class to encapsulate a neural experiment.
 # The boilerplate code to setup the experiment, log stats, checkpoints and plotting have been provided to you.
@@ -38,7 +40,7 @@ class Experiment(object):
         self.__experiment_dir = os.path.join(ROOT_STATS_DIR, self.__name)
 
         # Load Datasets
-        self.__vocab, self._train_loader, self._val_loader, self._test_loader = get_datasets(config_data)
+        self.__vocab, self.__train_loader, self.__val_loader, self.__test_loader = get_datasets(config_data)
 
         # Setup Experiment
         self.__generation_config = config_data['generation']
@@ -51,8 +53,7 @@ class Experiment(object):
         # Init Model
         self.__model = get_model(config_data, self.__vocab)
 
-        # TODO: Set these Criterion and Optimizers Correctly
-        self.__criterion = None
+        self.__criterion = nn.CrossEntropyLoss()
         self.__optimizer = torch.optim.Adam(self.__model.parameters(), lr=self.__config_data['experiment']['learning_rate'])
 
         self.__init_model()
@@ -93,49 +94,10 @@ class Experiment(object):
             self.__log_epoch_stats(start_time)
             self.__save_model()
 
-            # print("Epoch {} Train Loss: {} Val Loss: {}".format(epoch, train_loss, val_loss))
-
-    def plot_image_captions(self, images, caption_length, kind='test', epoch=None):
-
-        with torch.no_grad():
-            image_dir = kind + '_images'
-            if epoch is not None:
-                image_dir += '_epoch{}'.format(epoch)
-            out_dir = os.path.join(self.__experiment_dir, image_dir)
-            if not os.path.exists(out_dir):
-                os.makedirs(out_dir)
-
-            images = images[:10] # 10 x 3 x 256 x 256
-            
-            model = get_model(self.__config_data, self.__vocab)
-            if kind == 'test':
-                model.load_state_dict(torch.load(os.path.join(self.__experiment_dir, 'best_model.pth')))
-            else:
-                model.load_state_dict(self.__model.state_dict())
-
-            model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-            model.eval()
-
-            predictions = model.predict(images, caption_length)
-            captions = self.generate_caption(predictions) # list(list(str))
-            
-            denormalize = transforms.Compose([
-                transforms.Normalize(mean=[-0.485, -0.456, -0.406], std=[1/0.229, 1/0.224, 1/0.225])
-            ])
-            images = denormalize(images)
-            images = list(images.permute(0, 2, 3, 1).cpu().numpy())
-            
-            x = 0
-            for img, caption in zip(images, captions):
-                plt.imshow(img)
-                plt.xlabel(' '.join(caption))
-                plt.savefig(os.path.join(out_dir, 'img{}.png'.format(x)))
-                x += 1
-
-    def generate_caption(self, prediction):
+    def convert_question(self, prediction):
         """
-        Generates words from predicted one-hot encoded captions
-        prediction: N x L
+        Converts predicted question indices to word tokens
+        prediction: N x Q
         """
         word_idxs = prediction.cpu().numpy()
         captions = []
@@ -151,7 +113,8 @@ class Experiment(object):
         
         to_return = []
         for i in range(len(captions)):
-            clean_list = ['<pad>', '<start>', '<end>', '<unk>']
+            clean_list = ['<pad>', '<start>', '<end>', '<unk>', ' ', ';', ',', '.', '\'', '-', '(', ')', '[', ']', '@', '$', \
+                '%', '!', '?', '/', '+', '^', '&', '*']
             cleaned_caption = [word for word in captions[i] if word not in clean_list]
             to_return.append(cleaned_caption)
 
@@ -161,64 +124,46 @@ class Experiment(object):
         self.__model.train()
         training_loss = 0
 
-        for i, (images, captions, _) in enumerate(self.__train_loader):
-            # 64 x 3 x 256 x 256
-            # 64 x 21
-            # hidden_state = None
+        for i, (passages, answers, questions) in enumerate(self.__train_loader):
+
             if torch.cuda.is_available:
-                images = images.cuda().float()
-                captions = captions.cuda().float()
+                passages = passages.cuda().long()
+                answers = answers.cuda().long()
+                questions = questions.cuda().long()
 
-            imgs = self.__model.embed_image(images) # N x 1 x embedding_size
-            caps = self.__model.embed_word(captions.long()) # N x 20 x embedding_size
-
-            inp = torch.cat([imgs, caps[:, :-1, :]], axis=1)
-            
-            out, hidden_state = self.__model(inp) # N x L x vocab_size
+            out_seq = self.__model(passages, answers, questions) # N x Q x vocab_size
 
             self.__optimizer.zero_grad()
-            loss = self.__criterion(out.permute(0, 2, 1), captions.long())
+            loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
             loss.backward()
             self.__optimizer.step()
 
-            batch_loss = loss.sum().item() / captions.shape[1]
+            batch_loss = loss.sum().item() / questions.shape[1]
             training_loss += batch_loss
 
             if i % 100 == 0:
                 print("Batch {} Loss: {}".format(i, batch_loss))
 
-            if i == 0:
-                self.plot_image_captions(images, captions.shape[1], kind='train', epoch=self.__current_epoch)
-
         training_loss /= len(self.__train_loader)
 
         return training_loss
 
-    # TODO: Perform one Pass on the validation set and return loss value. You may also update your best model here.
     def __val(self):
         self.__model.eval()
         val_loss = 0
 
         with torch.no_grad():
-            for i, (images, captions, _) in enumerate(self.__val_loader):
+            for i, (passages, answers, questions) in enumerate(self.__val_loader):
                 
                 if torch.cuda.is_available:
-                    images = images.cuda().float()
-                    captions = captions.cuda().float()
+                    passages = passages.cuda().long()
+                    answers = answers.cuda().long()
+                    questions = questions.cuda().long()
                 
-                imgs = self.__model.embed_image(images) # N x 1 x embedding_size
-                caps = self.__model.embed_word(captions.long()) # N x 20 x embedding_size
-
-                inp = torch.cat([imgs, caps[:, :-1, :]], axis=1) 
-                out, hidden_state = self.__model(inp) # N x L x vocab_size
-
-                loss = self.__criterion(out.permute(0, 2, 1), captions.long())
-
-                batch_loss = loss.sum().item() / captions.shape[1]
+                out_seq = self.__model(passages, answers, questions)
+                loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+                batch_loss = loss.sum().item() / questions.shape[1]
                 val_loss += batch_loss
-
-                if i == 0:
-                    self.plot_image_captions(images, captions.shape[1], kind='val', epoch=self.__current_epoch)
 
             val_loss /= len(self.__val_loader)
 
@@ -231,72 +176,68 @@ class Experiment(object):
         
         return val_loss
 
-    # TODO: Implement your test function here. Generate sample captions and evaluate loss and
-    #  bleu scores using the best model. Use utility functions provided to you in caption_utils.
-    #  Note than you'll need image_ids and COCO object in this case to fetch all captions to generate bleu scores.
     def test(self):
         self.__model.eval()
         test_loss = 0
         
+        meteor_score = 0
+        rougeL_score = 0
         bleu1_score = 0
         bleu4_score = 0
 
         model = get_model(self.__config_data, self.__vocab)
         model.load_state_dict(torch.load(os.path.join(self.__experiment_dir, 'best_model.pth')))
-        # model.load_state_dict(self.__best_model)
+        model.temperature = self.__config_data['generation']['temperature']
         model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
         model.eval()
 
+        meteor = load_metric("meteor")
+        rouge = load_metric("rouge")
+        bleu = load_metric("bleu")
+
         with torch.no_grad():
-            print("Test Loss and Caption Generation")
-            for i, (images, captions, img_ids) in enumerate(self.__test_loader):
+            for i, (passages, answers, questions) in enumerate(self.__test_loader):
                 if torch.cuda.is_available:
-                    images = images.cuda().float()
-                    captions = captions.cuda().float()
+                    passages = passages.cuda().long()
+                    answers = answers.cuda().long()
+                    questions =questions.cuda().long()
 
-                imgs = self.__model.embed_image(images) # N x 1 x embedding_size
-                caps = self.__model.embed_word(captions.long()) # N x 20 x embedding_size
+                out_seq = model(passages, answers, questions) # N x Q
+                loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
 
-                inp = torch.cat([imgs, caps[:, :-1, :]], axis=1)
-                
-                out, hidden_state = self.__model(inp) # N x L x vocab_size
-                
-                loss = self.__criterion(out.permute(0, 2, 1), captions.long())
-
-                batch_loss = loss.sum().item() / captions.shape[1]
+                batch_loss = loss.sum().item() / questions.shape[1]
                 test_loss += batch_loss
 
-                # Caption Evaluation
-                predictions = model.predict(images, captions.shape[1])
-                pred_captions = self.generate_caption(predictions)
-                
-                temp_bleu1 = 0
-                temp_bleu4 = 0
-                for k in range(len(img_ids)):
-                    pred_caption = pred_captions[k] # list(str)
-                    ref_captions = [elem['caption'].lower() for elem in self.__coco_test.imgToAnns[img_ids[k]]]
-                    ref_captions = [nltk.tokenize.word_tokenize(elem) for elem in ref_captions]
+                # Metric Evaluation
+                predictions = model.predict(passages, answers) # N x Q
+                predictions = self.convert_question(predictions) # list of lists of tokens
+                true_questions = self.convert_question(questions) # list of lists of tokens
 
-                    temp_bleu1 += bleu1(ref_captions, pred_caption)
-                    temp_bleu4 += bleu4(ref_captions, pred_caption)
+                bleu_list = [[elem] for elem in true_questions]
+                bleu1_score += bleu.compute(predictions=predictions, references=bleu_list, max_order=1)['bleu']
+                bleu4_score += bleu.compute(predictions=predictions, references= bleu_list, max_order=4)['bleu']
 
-                bleu1_score += temp_bleu1 / len(img_ids)
-                bleu4_score += temp_bleu4 / len(img_ids)
-
-                if i == 0:
-                    self.plot_image_captions(images, captions.shape[1], kind='test')
+                predicted_strings = [' '.join(elem) for elem in predictions]
+                true_strings = [' '.join(elem) for elem in true_questions]
+                meteor_score += meteor.compute(predictions=predicted_strings, references=true_strings)['meteor']
+                rougeL_score += rouge.compute(predictions=predicted_strings, references=true_strings)['rougeL'].mid.fmeasure
 
             test_loss /= len(self.__test_loader)
             perp = np.exp(test_loss)
 
-            # Normalize BLEU scores
+            # Normalize metric scores
             bleu1_score /= len(self.__test_loader)
             bleu4_score /= len(self.__test_loader)
-        
-        result_str = "Test Performance: Loss: {}, Perplexity: {}, Bleu1: {}, Bleu4: {}".format(test_loss,
-                                                                                               perp,
-                                                                                               bleu1_score,
-                                                                                               bleu4_score)
+            meteor_score /= len(self.__test_loader)
+            rougeL_score /= len(self.__test_loader)
+
+        result_str = "Test Performance: Loss: {}, Perplexity: {}, Bleu1: {}, Bleu4: {}, Meteor: {}, Rouge-L: {}".format(
+                                                                                            test_loss,
+                                                                                            perp,
+                                                                                            bleu1_score,
+                                                                                            bleu4_score,
+                                                                                            meteor_score,
+                                                                                            rougeL_score)
         self.__log(result_str)
 
         dic = {'Test Loss': test_loss, 'Perplexity': perp, 'BLEU1': bleu1_score, 'BLEU4': bleu4_score}

@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import constants
 
 class LSTMContextLayer(nn.Module):
     """Extracts contextual information from inputs"""
@@ -123,20 +124,20 @@ class LSTMDecoder(nn.Module):
         self.fc = nn.Linear(self.hidden_size, len(self.vocab))
         self.softmax = nn.Softmax(dim=2)
 
-    def forward(self, encoded_inputs, embedded_targets=None, embedder=None):
+    def forward(self, encoded_inputs, embedded_targets=None, embedder=None, temperature=1.0):
         """
         Generates sequential output
         
         encoded_inputs: N x 1 x E
-        embedded_targets: N x L x E
+        embedded_targets: N x Q x E
         embedded_targets: supply targets for teacher forcing, otherwise, a single output is produced
         """
         
         if embedded_targets is not None:        
             assert embedded_targets.shape[1] == self.question_length
             decoder_inputs = torch.cat([encoded_inputs, embedded_targets[:, :-1, :]], dim=1)
-            sequence, _ = self.decoder(decoder_inputs) # N x L x hidden_size
-            sequence = self.fc(sequence) # N x L x vocab_size
+            sequence, _ = self.decoder(decoder_inputs) # N x Q x hidden_size
+            sequence = self.fc(sequence) # N x Q x vocab_size
             return sequence
         else:
             with torch.no_grad():
@@ -147,7 +148,7 @@ class LSTMDecoder(nn.Module):
                 for i in range(self.question_length):
                     out, hidden_state = self.decoder(inputs, hidden_state) # N x 1 x H
                     out = self.fc(out) # N x 1 x vocab_size
-                    probs = self.softmax(out)
+                    probs = self.softmax(out.div(temperature))
                     word = torch.multinomial(probs.squeeze(), 1) # N x 1
 
                     if i == 0:
@@ -157,21 +158,22 @@ class LSTMDecoder(nn.Module):
 
                     inputs = embedder(word.long()) # N x 1 x E
                     
-                return sequence # N x L
+                return sequence # N x Q
     
-    def __call__(self, encoded_inputs, embedded_targets, embedder=None):
+    def __call__(self, encoded_inputs, embedded_targets, embedder=None, temperature=1.0):
         
-        return self.forward(encoded_inputs, embedded_targets, embedder)
+        return self.forward(encoded_inputs, embedded_targets, embedder, temperature)
 
 class BiDAF_LSTMNet(nn.Module):
 
-    def __init__(self, embedding_dim, hidden_size, num_layers, vocab, question_length):
+    def __init__(self, embedding_dim, hidden_size, num_layers, vocab, question_length, temperature=1.0):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.vocab = vocab
         self.question_length = question_length
+        self.temperature = temperature
         
         self.embedder = nn.Embedding(num_embeddings = len(self.vocab), embedding_dim=embedding_dim, padding_idx=0)
         self.encoder = AttentionFlowLSTMEncoder(self.embedding_dim, self.hidden_size, self.num_layers, self.vocab)
@@ -188,9 +190,14 @@ class BiDAF_LSTMNet(nn.Module):
         answer: N x A
         question: N x Q
         """
-        P = passage.shape[1] # P, A, and Q should all be the same
+        P = passage.shape[1] 
         A = answer.shape[1]
         Q = question.shape[1]
+        
+        assert P == constants.MAX_PASSAGE_LEN + 2
+        assert A == constants.MAX_ANSWER_LEN + 2
+        assert Q == constants.MAX_QUESTION_LEN + 2
+        
         pass_ans_qembed = self.embed(torch.cat([passage, answer, question], dim=1))
         passage, answer, q_embed = pass_ans_qembed[:, :P, :], pass_ans_qembed[:, P:P+A, :], pass_ans_qembed[:, P+A:, :]
 
@@ -209,5 +216,5 @@ class BiDAF_LSTMNet(nn.Module):
             pass_ans = self.embed(torch.cat([passage, answer], dim=1))
             passage, answer = pass_ans[:, :passage.shape[1], :], pass_ans[:, passage.shape[1]:, :]
             encoded = self.encoder(passage, answer) # N x 1 x E
-            sequence = self.decoder(encoded, embedded_targets=None, embedder=self.embedder) # N x L x E
+            sequence = self.decoder(encoded, embedded_targets=None, embedder=self.embedder, temperature=self.temperature) # N x Q
             return sequence
