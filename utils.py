@@ -96,3 +96,5 @@ def build_vocab():
         vocab.add_word(elem)
 
     save_vocab(vocab)
+
+    return vocab
