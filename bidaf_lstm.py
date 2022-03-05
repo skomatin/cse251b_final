@@ -192,7 +192,7 @@ class BiDAF_LSTMNet(nn.Module):
         A = answer.shape[1]
         Q = question.shape[1]
         pass_ans_qembed = self.embed(torch.cat([passage, answer, question], dim=1))
-        passage, answer, q_embed = pass_ans_qembed[:, :P, :], pass_ans_qembed[:, P:2*P, :], pass_ans_qembed[:, 2*P:, :]
+        passage, answer, q_embed = pass_ans_qembed[:, :P, :], pass_ans_qembed[:, P:P+A, :], pass_ans_qembed[:, P+A:, :]
 
         encoded = self.encoder(passage, answer)
         sequence = self.decoder(encoded, q_embed) # teacher forced

@@ -87,7 +87,9 @@ def build_vocab():
             
         words += passage + question + answer
 
-    all_words = set(words)
+    ser = pd.Series(words)
+    counts = ser.value_counts()
+    all_words = list(ser[ser.isin(counts[counts >= 2].index)].unique())
     for elem in all_words:
         vocab.add_word(elem)
 
