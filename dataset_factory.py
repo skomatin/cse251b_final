@@ -78,14 +78,14 @@ def get_datasets(config_data):
     val_dataset = SQUAD(val_file_path, vocabulary)
     val_data_loader = DataLoader(dataset=val_dataset,
                                     batch_size=config_data['dataset']['batch_size'],
-                                    shuffle=True,
+                                    shuffle=False,
                                     num_workers=config_data['dataset']['num_workers'],
                                     pin_memory=True)
 
     test_dataset = SQUAD(test_file_path, vocabulary)
     test_data_loader = DataLoader(dataset=test_dataset,
                                     batch_size=config_data['dataset']['batch_size'],
-                                    shuffle=True,
+                                    shuffle=False,
                                     num_workers=config_data['dataset']['num_workers'],
                                     pin_memory=True)
 
