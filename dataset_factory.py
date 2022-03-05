@@ -89,4 +89,4 @@ def get_datasets(config_data):
                                     num_workers=config_data['dataset']['num_workers'],
                                     pin_memory=True)
 
-    return train_data_loader, val_data_loader, test_data_loader, vocabulary
+    return vocabulary, train_data_loader, val_data_loader, test_data_loader
