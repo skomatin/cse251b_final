@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torchvision
 from bidaf_lstm import *
+from v_transformer import *
 import constants
 
 # Build and return the model here based on the configuration.
@@ -18,6 +19,14 @@ def get_model(config_data, vocab):
     # Define and return model
     if model_type == 'BiDAFLSTM':
         return BiDAF_LSTMNet(embedding_size, hidden_size, num_layers, vocab, question_length, model_temp)
-    else:
-        return None
+    elif model_type == 'v_transformer':
+        return VTransformer(
+            config_data['transformer']['num_encoder_layers'],
+            config_data['transformer']['num_decoder_layers'],
+            embedding_size,
+            config_data['transformer']['nhead'],
+            vocab,
+            config_data['transformer']['dim_feedforward'],
+            config_data['transformer']['dropout']
+    )
 
