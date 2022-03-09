@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import numpy as np
-import constants
+from constants import *
 
 class base_LSTM(nn.Module):
     
@@ -30,20 +30,20 @@ class base_LSTM(nn.Module):
 
     def forward(self, passage, answer, question):
 
-        linked_input = np.concatenate((passage, answer), axis=1)
+        linked_input = torch.concat((passage, answer), dim=1)
         linked_embedded = self.word_embedding(linked_input)
-        embedded_passage = np.split(linked_embedded, [self.passage_length], axis=1)[0]
-        embedded_answer = np.split(linked_embedded, [self.passage_length], axis=1)[1]
+        embedded_passage = torch.split(linked_embedded, [self.passage_length], dim=1)[0]
+        embedded_answer = torch.split(linked_embedded, [self.passage_length], dim=1)[1]
         encoded_passage = self.encoder(embedded_passage)
         encoded_answer = self.encoder(embedded_answer)
 
-        linked_encoded = np.concatenate((encoded_passage, encoded_answer), axis=1)
+        linked_encoded = torch.concat((encoded_passage, encoded_answer), dim=1)
         temp = self.ffn(linked_encoded)
 
         inp_pa = self.pool(temp)
 
-        inp_q = np.split(question, [self.question_length-1], axis=1)[0]
-        inp = np.concatenate((inp_pa, inp_q), axis=1)
+        inp_q = torch.split(question, [self.question_length-1], dim=1)[0]
+        inp = torch.concat((inp_pa, inp_q), dim=1)
 
         out = self.decoder(inp)
         out = self.fc(out)
