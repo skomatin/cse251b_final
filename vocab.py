@@ -6,13 +6,14 @@ import nltk
 # from collections import Counter
 import functools
 import operator
+from constants import PAD_IDX, START_TKN
 
 class Vocabulary(object):
     """Basic Vocabulary"""
 
     def __init__(self):
-        self.word2idx = {'<pad>': 0, '<start>': 1, '<end>': 2, '<unk>': 3}
-        self.idx2word = {0: '<pad>', 1: '<start>', 2: '<end>', 3: '<unk>'}
+        self.word2idx = {'<pad>': PAD_IDX, '<start>': START_TKN, '<end>': 2, '<unk>': 3}
+        self.idx2word = {PAD_IDX: '<pad>', START_TKN: '<start>', 2: '<end>', 3: '<unk>'}
         self.idx = 4
 
     def add_word(self, word):
