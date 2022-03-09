@@ -41,7 +41,7 @@ class AttentionFlowLayer(nn.Module):
         H: N x P x 2d -- passage representation
         U: N x A x 2d -- answer representation
 
-        G (output): N x P x 2d
+        G (output): N x P x 8d
         Implementation based off of
         https://github.com/jojonki/BiDAF/blob/master/layers/bidaf.py
         """

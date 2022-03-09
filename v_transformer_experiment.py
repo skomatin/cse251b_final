@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from datetime import datetime
 
-from constants import ROOT_STATS_DIR, GRADIENT_ACCUMULATE
+from constants import *
 from dataset_factory import get_datasets
 from model_factory import get_model
 from file_utils import *
@@ -21,11 +21,11 @@ import json
 
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torchvision.transforms as transforms
-from torch.cuda.amp import GradScaler, autocast
 
 from datasets import load_metric
 
 warnings.filterwarnings("ignore", category=UserWarning)
+torch.autograd.set_detect_anomaly(True)
 # Class to encapsulate a neural experiment.
 # The boilerplate code to setup the experiment, log stats, checkpoints and plotting have been provided to you.
 # You only need to implement the main training logic of your experiment and implement train, val and test methods.
@@ -54,9 +54,12 @@ class Experiment(object):
         # Init Model
         self.__model = get_model(config_data, self.__vocab)
 
-        self.__criterion = nn.CrossEntropyLoss()
+        for p in self.__model.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
+
+        self.__criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX)
         self.__optimizer = torch.optim.Adam(self.__model.parameters(), lr=self.__config_data['experiment']['learning_rate'])
-        self.__scaler = GradScaler()
 
         self.__init_model()
 
@@ -126,7 +129,6 @@ class Experiment(object):
         self.__model.train()
         training_loss = 0
 
-        gradient_accumulation = GRADIENT_ACCUMULATE
         for i, (passages, answers, questions) in enumerate(self.__train_loader):
 
             if torch.cuda.is_available:
@@ -134,17 +136,16 @@ class Experiment(object):
                 answers = answers.cuda().long()
                 questions = questions.cuda().long()
 
-            with autocast():
-                out_seq = self.__model(passages, answers, questions) # N x Q x vocab_size
-                loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
-            
-            self.__scaler.scale(loss / gradient_accumulation).backward()
+            out_seq = self.__model(passages, answers, questions) # N x Q x vocab_size
 
-            if (i+1) % gradient_accumulation == 0:
-                # Update every k batches instead of every batch, allows for smaller batch sizes
-                self.__scaler.step(self.__optimizer)
-                self.__scaler.update()
-                self.__optimizer.zero_grad()
+            self.__optimizer.zero_grad()
+            if self.__config_data['model']['model_type'] == 'v_transformer':
+                # Since the length is max_len - 1... Need to fix TODO
+                loss = self.__criterion(out_seq[0].permute(0, 2, 1), out_seq[1])
+            else:
+                loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+            loss.backward()
+            self.__optimizer.step()
 
             batch_loss = loss.sum().item() / questions.shape[1]
             training_loss += batch_loss
@@ -168,8 +169,12 @@ class Experiment(object):
                     answers = answers.cuda().long()
                     questions = questions.cuda().long()
                 
-                with autocast():
-                    out_seq = self.__model(passages, answers, questions)
+                out_seq = self.__model(passages, answers, questions)
+                # loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+                if self.__config_data['model']['model_type'] == 'v_transformer':
+                    # Since the length is max_len - 1... Need to fix TODO
+                    loss = self.__criterion(out_seq[0].permute(0, 2, 1), out_seq[1])
+                else:
                     loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
                 batch_loss = loss.sum().item() / questions.shape[1]
                 val_loss += batch_loss
@@ -209,10 +214,14 @@ class Experiment(object):
                 if torch.cuda.is_available:
                     passages = passages.cuda().long()
                     answers = answers.cuda().long()
-                    questions = questions.cuda().long()
+                    questions =questions.cuda().long()
 
-                with autocast():
-                    out_seq = model(passages, answers, questions) # N x Q
+                out_seq = model(passages, answers, questions) # N x Q
+
+                if self.__config_data['model']['model_type'] == 'v_transformer':
+                    # Since the length is max_len - 1... Need to fix TODO
+                    loss = self.__criterion(out_seq[0].permute(0, 2, 1), out_seq[1])
+                else:
                     loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
 
                 batch_loss = loss.sum().item() / questions.shape[1]
@@ -222,6 +231,7 @@ class Experiment(object):
                 predictions = model.predict(passages, answers) # N x Q
                 predictions = self.convert_question(predictions) # list of lists of tokens
                 true_questions = self.convert_question(questions) # list of lists of tokens
+                print (predictions)
 
                 bleu_list = [[elem] for elem in true_questions]
                 bleu1_score += bleu.compute(predictions=predictions, references=bleu_list, max_order=1)['bleu']
@@ -250,7 +260,7 @@ class Experiment(object):
                                                                                             rougeL_score)
         self.__log(result_str)
 
-        dic = {'Test Loss': test_loss, 'Perplexity': perp, 'BLEU1': bleu1_score, 'BLEU4': bleu4_score, 'METEOR': meteor_score, 'ROUGE-L': rougeL_score}
+        dic = {'Test Loss': test_loss, 'Perplexity': perp, 'BLEU1': bleu1_score, 'BLEU4': bleu4_score}
         with open(os.path.join(self.__experiment_dir, 'results.json'), 'w') as f:
             json.dump(dic, f)
 
