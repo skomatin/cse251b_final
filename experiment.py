@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from datetime import datetime
 
-from constants import ROOT_STATS_DIR
+from constants import ROOT_STATS_DIR, GRADIENT_ACCUMULATE
 from dataset_factory import get_datasets
 from model_factory import get_model
 from file_utils import *
@@ -126,7 +126,7 @@ class Experiment(object):
         self.__model.train()
         training_loss = 0
 
-        gradient_accumulation = 50
+        gradient_accumulation = GRADIENT_ACCUMULATE
         for i, (passages, answers, questions) in enumerate(self.__train_loader):
 
             if torch.cuda.is_available:
@@ -141,6 +141,7 @@ class Experiment(object):
             self.__scaler.scale(loss / gradient_accumulation).backward()
 
             if (i+1) % gradient_accumulation == 0:
+                # Update every k batches instead of every batch, allows for smaller batch sizes
                 self.__scaler.step(self.__optimizer)
                 self.__scaler.update()
                 self.__optimizer.zero_grad()
@@ -249,7 +250,7 @@ class Experiment(object):
                                                                                             rougeL_score)
         self.__log(result_str)
 
-        dic = {'Test Loss': test_loss, 'Perplexity': perp, 'BLEU1': bleu1_score, 'BLEU4': bleu4_score}
+        dic = {'Test Loss': test_loss, 'Perplexity': perp, 'BLEU1': bleu1_score, 'BLEU4': bleu4_score, 'METEOR': meteor_score, 'ROUGE-L': rougeL_score}
         with open(os.path.join(self.__experiment_dir, 'results.json'), 'w') as f:
             json.dump(dic, f)
 
