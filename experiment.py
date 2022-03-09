@@ -21,6 +21,7 @@ import json
 
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torchvision.transforms as transforms
+from torch.cuda.amp import GradScaler, autocast
 
 from datasets import load_metric
 
@@ -55,6 +56,7 @@ class Experiment(object):
 
         self.__criterion = nn.CrossEntropyLoss()
         self.__optimizer = torch.optim.Adam(self.__model.parameters(), lr=self.__config_data['experiment']['learning_rate'])
+        self.__scaler = GradScaler()
 
         self.__init_model()
 
@@ -124,6 +126,7 @@ class Experiment(object):
         self.__model.train()
         training_loss = 0
 
+        gradient_accumulation = 50
         for i, (passages, answers, questions) in enumerate(self.__train_loader):
 
             if torch.cuda.is_available:
@@ -131,12 +134,16 @@ class Experiment(object):
                 answers = answers.cuda().long()
                 questions = questions.cuda().long()
 
-            out_seq = self.__model(passages, answers, questions) # N x Q x vocab_size
+            with autocast():
+                out_seq = self.__model(passages, answers, questions) # N x Q x vocab_size
+                loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+            
+            self.__scaler.scale(loss / gradient_accumulation).backward()
 
-            self.__optimizer.zero_grad()
-            loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
-            loss.backward()
-            self.__optimizer.step()
+            if (i+1) % gradient_accumulation == 0:
+                self.__scaler.step(self.__optimizer)
+                self.__scaler.update()
+                self.__optimizer.zero_grad()
 
             batch_loss = loss.sum().item() / questions.shape[1]
             training_loss += batch_loss
@@ -160,8 +167,9 @@ class Experiment(object):
                     answers = answers.cuda().long()
                     questions = questions.cuda().long()
                 
-                out_seq = self.__model(passages, answers, questions)
-                loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+                with autocast():
+                    out_seq = self.__model(passages, answers, questions)
+                    loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
                 batch_loss = loss.sum().item() / questions.shape[1]
                 val_loss += batch_loss
 
@@ -200,10 +208,11 @@ class Experiment(object):
                 if torch.cuda.is_available:
                     passages = passages.cuda().long()
                     answers = answers.cuda().long()
-                    questions =questions.cuda().long()
+                    questions = questions.cuda().long()
 
-                out_seq = model(passages, answers, questions) # N x Q
-                loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+                with autocast():
+                    out_seq = model(passages, answers, questions) # N x Q
+                    loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
 
                 batch_loss = loss.sum().item() / questions.shape[1]
                 test_loss += batch_loss
