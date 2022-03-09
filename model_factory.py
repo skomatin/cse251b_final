@@ -3,6 +3,7 @@ import torch.nn as nn
 import torchvision
 from bidaf_lstm import *
 from v_transformer import *
+from baseline import *
 import constants
 
 # Build and return the model here based on the configuration.
@@ -29,4 +30,11 @@ def get_model(config_data, vocab):
             config_data['transformer']['dim_feedforward'],
             config_data['transformer']['dropout']
     )
-
+    elif model_type == 'baseline':
+        return base_LSTM(
+            hidden_size,
+            embedding_size,
+            num_layers,
+            vocab,
+            model_temp
+        )

@@ -6,13 +6,13 @@ import constants
 
 class base_LSTM(nn.Module):
     
-    def __init__(self, hidden_size, embedding_size, num_layers, vocab_size, model_temp):
+    def __init__(self, hidden_size, embedding_size, num_layers, vocab, model_temp):
         super().__init__()
         
         self.hidden_size = hidden_size
         self.embedding_size = embedding_size
         self.num_layers = num_layers
-        self.vocab_size = vocab_size
+        self.vocab_size = len(vocab)
         self.model_temp = model_temp
         self.passage_length = MAX_PASSAGE_LEN+2
         self.answer_length = MAX_ANSWER_LEN+2
