@@ -7,3 +7,5 @@ ROOT_STATS_DIR = './experiment_data'
 PAD_IDX = 0
 START_TKN = 1
 END_TKN = 2
+
+GRADIENT_ACCUMULATE = 10

@@ -22,6 +22,8 @@ import json
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torchvision.transforms as transforms
 
+from torch.cuda.amp import GradScaler, autocast
+
 from datasets import load_metric
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -135,15 +137,17 @@ class Experiment(object):
                 passages = passages.cuda().long()
                 answers = answers.cuda().long()
                 questions = questions.cuda().long()
-
-            out_seq = self.__model(passages, answers, questions) # N x Q x vocab_size
-
             self.__optimizer.zero_grad()
-            if self.__config_data['model']['model_type'] == 'v_transformer':
-                # Since the length is max_len - 1... Need to fix TODO
-                loss = self.__criterion(out_seq[0].permute(0, 2, 1), out_seq[1])
-            else:
-                loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+
+            with autocast():
+                out_seq = self.__model(passages, answers, questions) # N x Q x vocab_size
+
+                if self.__config_data['model']['model_type'] == 'v_transformer':
+                    # Since the length is max_len - 1... Need to fix TODO
+                    loss = self.__criterion(out_seq[0].permute(0, 2, 1), out_seq[1])
+                else:
+                    loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+            
             loss.backward()
             self.__optimizer.step()
 
@@ -169,13 +173,15 @@ class Experiment(object):
                     answers = answers.cuda().long()
                     questions = questions.cuda().long()
                 
-                out_seq = self.__model(passages, answers, questions)
-                # loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
-                if self.__config_data['model']['model_type'] == 'v_transformer':
-                    # Since the length is max_len - 1... Need to fix TODO
-                    loss = self.__criterion(out_seq[0].permute(0, 2, 1), out_seq[1])
-                else:
-                    loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+                with autocast():
+                    out_seq = self.__model(passages, answers, questions) # N x Q x vocab_size
+
+                    if self.__config_data['model']['model_type'] == 'v_transformer':
+                        # Since the length is max_len - 1... Need to fix TODO
+                        loss = self.__criterion(out_seq[0].permute(0, 2, 1), out_seq[1])
+                    else:
+                        loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+                
                 batch_loss = loss.sum().item() / questions.shape[1]
                 val_loss += batch_loss
 
@@ -216,13 +222,14 @@ class Experiment(object):
                     answers = answers.cuda().long()
                     questions =questions.cuda().long()
 
-                out_seq = model(passages, answers, questions) # N x Q
+                with autocast():
+                    out_seq = self.__model(passages, answers, questions) # N x Q x vocab_size
 
-                if self.__config_data['model']['model_type'] == 'v_transformer':
-                    # Since the length is max_len - 1... Need to fix TODO
-                    loss = self.__criterion(out_seq[0].permute(0, 2, 1), out_seq[1])
-                else:
-                    loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+                    if self.__config_data['model']['model_type'] == 'v_transformer':
+                        # Since the length is max_len - 1... Need to fix TODO
+                        loss = self.__criterion(out_seq[0].permute(0, 2, 1), out_seq[1])
+                    else:
+                        loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
 
                 batch_loss = loss.sum().item() / questions.shape[1]
                 test_loss += batch_loss
