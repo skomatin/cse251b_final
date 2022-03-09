@@ -3,3 +3,7 @@ MAX_QUESTION_LEN = 60
 MAX_ANSWER_LEN = 46
 
 ROOT_STATS_DIR = './experiment_data'
+
+PAD_IDX = 0
+START_TKN = 1
+END_TKN = 2

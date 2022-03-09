@@ -1,4 +1,6 @@
 from experiment import Experiment
+# uncomment the following for transformer model
+# from v_transformer_experiment import Experiment
 import sys
 
 # Main Driver for your code. Either run `python main.py` which will run the experiment with default config
