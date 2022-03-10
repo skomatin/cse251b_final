@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torchvision
-import numpy as np
 from constants import *
 
 class base_LSTM(nn.Module):
@@ -30,20 +29,20 @@ class base_LSTM(nn.Module):
 
     def forward(self, passage, answer, question):
 
-        linked_input = torch.concat((passage, answer), dim=1)
+        linked_input = torch.cat((passage, answer), dim=1)
         linked_embedded = self.word_embedding(linked_input)
-        embedded_passage = torch.split(linked_embedded, [self.passage_length], dim=1)[0]
-        embedded_answer = torch.split(linked_embedded, [self.passage_length], dim=1)[1]
+        embedded_passage = torch.split(linked_embedded, [self.passage_length, self.answer_length], dim=1)[0]
+        embedded_answer = torch.split(linked_embedded, [self.passage_length, self.answer_length], dim=1)[1]
         encoded_passage = self.encoder(embedded_passage)
         encoded_answer = self.encoder(embedded_answer)
 
-        linked_encoded = torch.concat((encoded_passage, encoded_answer), dim=1)
+        linked_encoded = torch.cat((encoded_passage, encoded_answer), dim=1)
         temp = self.ffn(linked_encoded)
 
         inp_pa = self.pool(temp)
 
-        inp_q = torch.split(question, [self.question_length-1], dim=1)[0]
-        inp = torch.concat((inp_pa, inp_q), dim=1)
+        inp_q = torch.split(question, [self.question_length-1, 1], dim=1)[0]
+        inp = torch.cat((inp_pa, inp_q), dim=1)
 
         out = self.decoder(inp)
         out = self.fc(out)
@@ -52,14 +51,14 @@ class base_LSTM(nn.Module):
 
     def predict(self, passage, answer, question_length):
 
-        linked_input = np.concatenate((passage, answer), axis=1)
+        linked_input = torch.cat((passage, answer), dim=1)
         linked_embedded = self.word_embedding(linked_input)
-        embedded_passage = np.split(linked_embedded, [self.passage_length], axis=1)[0]
-        embedded_answer = np.split(linked_embedded, [self.passage_length], axis=1)[1]
+        embedded_passage = torch.split(linked_embedded, [self.passage_length, self.answer_length], dim=1)[0]
+        embedded_answer = torch.split(linked_embedded, [self.passage_length, self.answer_length], dim=1)[1]
         encoded_passage = self.encoder(embedded_passage)
         encoded_answer = self.encoder(embedded_answer)
 
-        linked_encoded = np.concatenate((encoded_passage, encoded_answer), axis=1)
+        linked_encoded = torch.cat((encoded_passage, encoded_answer), dim=1)
         temp = self.ffn(linked_encoded)
         inp = self.pool(temp)
         
@@ -80,7 +79,7 @@ class base_LSTM(nn.Module):
             if i == 0:
                 prediction = word
             else:
-                prediction = torch.cat([prediction, word], axis=1) # N x L
+                prediction = torch.cat([prediction, word], dim=1) # N x L
             
             inp = self.word_embedding(word.long()) # N x 1 x 300
         
