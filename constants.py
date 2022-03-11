@@ -12,4 +12,8 @@ PAD_IDX = 0
 START_TKN = 1
 END_TKN = 2
 
+<<<<<<< HEAD
 GRADIENT_ACCUMULATE = 1
+=======
+GRADIENT_ACCUMULATE = 50
+>>>>>>> master
