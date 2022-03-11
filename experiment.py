@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from datetime import datetime
 
-from constants import ROOT_STATS_DIR, GRADIENT_ACCUMULATE
+from constants import ROOT_STATS_DIR, GRADIENT_ACCUMULATE, PAD_IDX
 from dataset_factory import get_datasets
 from model_factory import get_model
 from file_utils import *
@@ -54,7 +54,7 @@ class Experiment(object):
         # Init Model
         self.__model = get_model(config_data, self.__vocab)
 
-        self.__criterion = nn.CrossEntropyLoss()
+        self.__criterion = nn.CrossEntropyLoss(ignore_index=PAD_IDX)
         self.__optimizer = torch.optim.Adam(self.__model.parameters(), lr=self.__config_data['experiment']['learning_rate'])
         self.__scaler = GradScaler()
 
@@ -91,7 +91,7 @@ class Experiment(object):
             start_time = datetime.now()
             self.__current_epoch = epoch
             train_loss = self.__train()
-            val_loss = self.__val()
+            val_loss = self.__val()                
             self.__record_stats(train_loss, val_loss)
             self.__log_epoch_stats(start_time)
             self.__save_model()
@@ -136,7 +136,7 @@ class Experiment(object):
 
             with autocast():
                 out_seq = self.__model(passages, answers, questions) # N x Q x vocab_size
-                loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+                loss = self.__criterion(out_seq.permute(0, 2, 1), questions[:, 1:])
             
             self.__scaler.scale(loss / gradient_accumulation).backward()
 
@@ -170,7 +170,7 @@ class Experiment(object):
                 
                 with autocast():
                     out_seq = self.__model(passages, answers, questions)
-                    loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+                    loss = self.__criterion(out_seq.permute(0, 2, 1), questions[:, 1:])
                 batch_loss = loss.sum().item() / questions.shape[1]
                 val_loss += batch_loss
 
@@ -213,7 +213,7 @@ class Experiment(object):
 
                 with autocast():
                     out_seq = model(passages, answers, questions) # N x Q
-                    loss = self.__criterion(out_seq.permute(0, 2, 1), questions)
+                    loss = self.__criterion(out_seq.permute(0, 2, 1), questions[:, 1:])
 
                 batch_loss = loss.sum().item() / questions.shape[1]
                 test_loss += batch_loss
@@ -266,7 +266,7 @@ class Experiment(object):
         self.__training_losses.append(train_loss)
         self.__val_losses.append(val_loss)
 
-        self.plot_stats()
+        # self.plot_stats()
 
         write_to_file_in_dir(self.__experiment_dir, 'training_losses.txt', self.__training_losses)
         write_to_file_in_dir(self.__experiment_dir, 'val_losses.txt', self.__val_losses)

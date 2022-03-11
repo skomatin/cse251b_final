@@ -16,18 +16,20 @@ def convert_question(prediction, vocab):
         captions = []
         for i in range(prediction.shape[0]):
             words = [vocab.idx2word[idx].lower() for idx in word_idxs[i]]
-            try:
-                end_idx = words.index('<end>') + 1 # cut off after predicting end
-            except ValueError as e:
-                end_idx = None
+            # try:
+            #     end_idx = words.index('<end>') + 1 # cut off after predicting end
+            # except ValueError as e:
+            #     end_idx = None
             
-            words = words[:end_idx]
+            # words = words[:end_idx]
             captions.append(words)
         
         to_return = []
         for i in range(len(captions)):
-            clean_list = ['<pad>', '<start>', '<end>', '<unk>', ' ', ';', ',', '.', '\'', '-', '(', ')', '[', ']', '@', '$', \
-                '%', '!', '?', '/', '+', '^', '&', '*']
+            # clean_list = ['<pad>', '<start>', '<end>', '<unk>']
+            clean_list = []
+            # clean_list = ['<pad>', '<start>', '<end>', '<unk>', ' ', ';', ',', '.', '\'', '-', '(', ')', '[', ']', '@', '$', \
+            #     '%', '!', '?', '/', '+', '^', '&', '*']
             cleaned_caption = [word for word in captions[i] if word not in clean_list]
             to_return.append(cleaned_caption)
 
@@ -49,7 +51,9 @@ if __name__ == '__main__':
 
     df_dic = {'passage': [], 'answer': [], 'pred_question': [], 'true_question': []}
 
-    for i, (passages, answers, questions) in enumerate(test_loader):
+    for i, (passages, answers, questions) in enumerate(train_loader):
+        if i > 10:
+            break
         with torch.no_grad():
 
             passages = passages.cuda().long()
@@ -58,7 +62,7 @@ if __name__ == '__main__':
             
             with autocast():
                 predicted_questions = model.predict(passages, answers)
-
+                print(predicted_questions)
             # list of lists
             passages = convert_question(passages, vocab)
             answers = convert_question(answers, vocab)
