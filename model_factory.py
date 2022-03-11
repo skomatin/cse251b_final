@@ -3,6 +3,7 @@ import torch.nn as nn
 import torchvision
 from bidaf_lstm import *
 from v_transformer import *
+from baseline import *
 import constants
 from custom import *
 from custom_masked import *
@@ -43,4 +44,11 @@ def get_model(config_data, vocab):
             config_data['model']['num_encoder_heads'],
             vocab,
             model_temp)
-
+    elif model_type == 'baseline':
+        return base_LSTM(
+            hidden_size,
+            embedding_size,
+            num_layers,
+            vocab,
+            model_temp
+        )
