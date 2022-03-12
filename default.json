@@ -5,7 +5,7 @@
     "validation_file_path": "data/val_processed.pickle",
     "test_file_path": "data/test_processed.pickle",
     "vocabulary_threshold": 2,
-    "batch_size": 64,
+    "batch_size": 32,
     "num_workers": 4
   },
   "experiment": {
@@ -15,8 +15,8 @@
   "model": {
     "hidden_size": 512,
     "num_layers": 2,
-    "embedding_size": 300,
-    "model_type": "LSTM"
+    "embedding_size": 100,
+    "model_type": "BiDAFLSTM"
   },
   "generation": {
     "max_length": 20,

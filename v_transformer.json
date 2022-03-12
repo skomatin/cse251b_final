@@ -1,5 +1,5 @@
 {
-  "experiment_name": "default_experiment",
+  "experiment_name": "v_transformer",
   "dataset": {
     "training_file_path": "./data/train_processed.pickle",
     "validation_file_path": "./data/val_processed.pickle",

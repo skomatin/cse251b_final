@@ -62,5 +62,7 @@ def get_datasets(config_data):
                                     shuffle=False,
                                     num_workers=config_data['dataset']['num_workers'],
                                     pin_memory=True)
-
+    
+    print("Loaded Dataset")
+    
     return vocabulary, train_data_loader, val_data_loader, test_data_loader

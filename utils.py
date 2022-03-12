@@ -57,8 +57,8 @@ def load_vocab():
 
 def build_vocab():
 
-    train = pd.read_csv('./data/train.csv')
-    val = pd.read_csv('./data/val.csv')
+    train = pd.read_csv(os.path.join(sys.path[0], './data/train.csv'))
+    val = pd.read_csv(os.path.join(sys.path[0], './data/val.csv'))
 
     vocab = Vocabulary()
     tokenizer = get_tokenizer("basic_english")

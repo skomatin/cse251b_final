@@ -35,6 +35,7 @@ class Experiment(object):
         config_data = read_file_in_dir(sys.path[0], name + '.json')
         if config_data is None:
             raise Exception("Configuration file doesn't exist: ", name)
+        delete_expr_folder(sys.path[0], config_data['experiment_name'])
 
         self.__config_data = config_data
         self.__name = config_data['experiment_name']
@@ -42,7 +43,7 @@ class Experiment(object):
 
         # Load Datasets
         self.__vocab, self.__train_loader, self.__val_loader, self.__test_loader = get_datasets(config_data)
-
+    
         # Setup Experiment
         self.__generation_config = config_data['generation']
         self.__epochs = config_data['experiment']['num_epochs']

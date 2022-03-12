@@ -21,6 +21,10 @@ def read_file_in_dir(root_dir, file_name):
     path = os.path.join(root_dir, file_name)
     return read_file(path)
 
+def delete_expr_folder(root_dir, expr_name):
+    path = os.path.join(root_dir, 'experiment_data/'+expr_name)
+    if os.path.isdir(path):
+        os.rmdir(path)
 
 def write_to_file(path, data):
     with open(path, "w") as outfile:
