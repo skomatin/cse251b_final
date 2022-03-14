@@ -30,31 +30,22 @@ class base_LSTM(nn.Module):
         self.fc = nn.Linear(in_features=self.hidden_size, out_features=self.vocab_size)
 
     def forward(self, passage, answer, question):
-        print(passage.shape, answer.shape, question.shape)
         linked_input = torch.cat((passage, answer), dim=1)
-        print(linked_input.shape)
         linked_embedded = self.word_embedding(linked_input) #(batch_size, passage_size+answer_size, embedding_size)
-        print(linked_embedded.shape)
         embedded_passage = torch.split(linked_embedded, [self.passage_length, self.answer_length], dim=1)[0]
-        print(embedded_passage.shape)
         embedded_answer = torch.split(linked_embedded, [self.passage_length, self.answer_length], dim=1)[1]
-        print(embedded_answer.shape)
         encoded_passage = self.encoder(embedded_passage)[0] #tuple
-        print(encoded_passage.shape)
         encoded_answer = self.encoder(embedded_answer)[0]
-        print(encoded_answer.shape)
 
         linked_encoded = torch.cat((encoded_passage, encoded_answer), dim=1) #(batch, num_words, 2*hidden_size)
-        print(linked_encoded.shape)
         temp = self.fcn(linked_encoded) #(batch, num_words, embedding_size)
-        print(temp.shape)
-        inp_pa = self.pool(temp)
-        print(inp_pa.shape)
+        inp_pa = torch.mean(temp, dim=1, keepdim=True)
 
         inp_q = torch.split(question, [self.question_length-1, 1], dim=1)[0]
-        inp = torch.cat((inp_pa, inp_q), dim=1)
+        embedded_q = linked_embedded = self.word_embedding(inp_q)
+        inp = torch.cat((inp_pa, embedded_q), dim=1)
 
-        out = self.decoder(inp)
+        out, _ = self.decoder(inp)
         out = self.fc(out)
 
         return out
@@ -70,7 +61,7 @@ class base_LSTM(nn.Module):
 
         linked_encoded = torch.cat((encoded_passage, encoded_answer), dim=1)
         temp = self.ffn(linked_encoded)
-        inp = self.pool(temp)
+        inp = torch.mean(temp, dim=1, keepdim=True)
         
         hidden_state = None
         prediction = None
