@@ -1,22 +1,22 @@
 {
-  "experiment_name": "baseline",
+  "experiment_name": "bidaf_512_2_50_GloVe",
   "dataset": {
     "training_file_path": "data/train_processed.pickle",
     "validation_file_path": "data/val_processed.pickle",
     "test_file_path": "data/test_processed.pickle",
     "vocabulary_threshold": 2,
-    "batch_size": 32,
+    "batch_size": 60,
     "num_workers": 4
   },
   "experiment": {
-    "num_epochs": 2,
+    "num_epochs": 5,
     "learning_rate": 5e-4
   },
   "model": {
     "hidden_size": 512,
     "num_layers": 2,
-    "embedding_size": 300,
-    "model_type": "baseline"
+    "embedding_size": 50,
+    "model_type": "BiDAFLSTM"
   },
   "generation": {
     "max_length": 20,

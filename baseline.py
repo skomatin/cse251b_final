@@ -23,13 +23,16 @@ class base_LSTM(nn.Module):
         self.word_embedding = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embedding_size)
 
 #         self.pool = nn.AvgPool2d((1, self.passage_length+self.answer_length))
-        self.pool = nn.AvgPool1d(kernel_size=self.passage_length+self.answer_length)
+        # self.pool = nn.AvgPool1d(kernel_size=self.passage_length + self.answer_length)
         
         self.decoder = nn.LSTM(input_size=self.embedding_size, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True)
         
         self.fc = nn.Linear(in_features=self.hidden_size, out_features=self.vocab_size)
 
     def forward(self, passage, answer, question):
+        #passage: batch_size x len_passage
+        #answer: batch_size x len_answer
+        #question: batch_size x len_question
         print(passage.shape, answer.shape, question.shape)
         linked_input = torch.cat((passage, answer), dim=1)
         print(linked_input.shape)
@@ -39,6 +42,7 @@ class base_LSTM(nn.Module):
         print(embedded_passage.shape)
         embedded_answer = torch.split(linked_embedded, [self.passage_length, self.answer_length], dim=1)[1]
         print(embedded_answer.shape)
+
         encoded_passage = self.encoder(embedded_passage)[0] #tuple
         print(encoded_passage.shape)
         encoded_answer = self.encoder(embedded_answer)[0]
@@ -48,10 +52,12 @@ class base_LSTM(nn.Module):
         print(linked_encoded.shape)
         temp = self.fcn(linked_encoded) #(batch, num_words, embedding_size)
         print(temp.shape)
-        inp_pa = self.pool(temp)
+        inp_pa = torch.mean(temp, dim=1, keepdim=True)
+        # inp_pa = self.pool(temp)
         print(inp_pa.shape)
 
         inp_q = torch.split(question, [self.question_length-1, 1], dim=1)[0]
+        print(inp_q.shape)
         inp = torch.cat((inp_pa, inp_q), dim=1)
 
         out = self.decoder(inp)
