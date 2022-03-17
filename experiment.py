@@ -35,7 +35,7 @@ class Experiment(object):
         config_data = read_file_in_dir(sys.path[0], name + '.json')
         if config_data is None:
             raise Exception("Configuration file doesn't exist: ", name)
-        delete_expr_folder(sys.path[0], config_data['experiment_name'])
+        # delete_expr_folder(sys.path[0], config_data['experiment_name'])
 
         self.__config_data = config_data
         self.__name = config_data['experiment_name']

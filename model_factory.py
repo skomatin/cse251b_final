@@ -4,6 +4,8 @@ import torchvision
 from bidaf_lstm import *
 from v_transformer import *
 from baseline import *
+from baseline_1 import *
+from baseline_2 import *
 import constants
 # from custom import *
 # from custom_masked import *
@@ -47,6 +49,22 @@ def get_model(config_data, vocab):
             model_temp)
     elif model_type == 'baseline':
         model = base_LSTM(
+            hidden_size,
+            embedding_size,
+            num_layers,
+            vocab,
+            model_temp
+        )
+    elif model_type == 'baseline_1':
+        model = base_LSTM1(
+            hidden_size,
+            embedding_size,
+            num_layers,
+            vocab,
+            model_temp
+        )
+    elif model_type == 'baseline_2':
+        model = base_GRU(
             hidden_size,
             embedding_size,
             num_layers,

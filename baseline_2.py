@@ -3,7 +3,7 @@ import torch.nn as nn
 import torchvision
 from constants import *
 
-class base_LSTM(nn.Module):
+class base_GRU(nn.Module):
     
     def __init__(self, hidden_size, embedding_size, num_layers, vocab, model_temp):
         super().__init__()
@@ -17,7 +17,7 @@ class base_LSTM(nn.Module):
         self.answer_length = MAX_ANSWER_LEN+2
         self.question_length = MAX_QUESTION_LEN+2
 
-        self.encoder = nn.LSTM(input_size=self.embedding_size, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True, bidirectional=True)
+        self.encoder = nn.GRU(input_size=self.embedding_size, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True, bidirectional=True)
         self.fcn = nn.Linear(in_features=2*self.hidden_size, out_features=self.embedding_size)
 #         self.ffn = nn.Conv2d(in_channels=2*self.hidden_size, out_channels=self.embedding_size, kernel_size=1)
         self.word_embedding = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embedding_size)
@@ -25,7 +25,7 @@ class base_LSTM(nn.Module):
 #         self.pool = nn.AvgPool2d((1, self.passage_length+self.answer_length))
         # self.pool = nn.AvgPool1d(kernel_size=self.passage_length + self.answer_length)
         
-        self.decoder = nn.LSTM(input_size=self.embedding_size, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True)
+        self.decoder = nn.GRU(input_size=self.embedding_size, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=True)
         
         self.fc = nn.Linear(in_features=self.hidden_size, out_features=self.vocab_size)
 
